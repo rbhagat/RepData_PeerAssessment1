@@ -1,10 +1,14 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
+author: "Rajesh Bhagat"
 output: 
   html_document:
     keep_md: true
 ---
 
+```{r setoptions, echo=FALSE}
+knitr::opts_chunk$set(fig.path='figure/')
+```
 
 ## Loading and preprocessing the data
 ```{r}
@@ -14,29 +18,31 @@ data <- read.csv("C:\\Users\\rmbhagat\\Desktop\\Coursera\\R\\Exercises\\5_Reprod
 
 ## What is mean total number of steps taken per day?
 ```{r dailytotalsteps}
-data2 <- tapply(data$steps, data$date, sum)
+totalDailySteps <- tapply(data$steps, data$date, sum)
 ```
-```{r histogram}
+```{r histogram1}
 par(mar=c(5,4,1,1))
-hist(data2)
+hist(totalDailySteps, main="Histogram of Total Daily Steps", xlab = "Total Daily Steps")
 ```
-```{r, results="hide"}
-data2mean <- mean(data2, na.rm=TRUE)
-data2median <- median(data2, na.rm=TRUE)
+```{r, results="asis"}
+totalDailyStepsMean <- mean(totalDailySteps, na.rm=TRUE)
+totalDailyStepsMedian <- median(totalDailySteps, na.rm=TRUE)
 ```
-The mean number of steps per day is `r data2mean`.
-The median number of steps per day is `r data2median`.
+The mean number of steps per day is `r totalDailyStepsMean`.
+The median number of steps per day is `r totalDailyStepsMedian`.
 
 ## What is the average daily activity pattern?
-```{r}
+```{r timeseriesplot1}
 dataAve5Int <- tapply(data$steps, data$interval, mean, na.rm=TRUE)
-plot(names(dataAve5Int),dataAve5Int,type="l")
+plot(names(dataAve5Int),dataAve5Int,type="l", xlab = "5-minute interval", ylab = "Ave. no. of steps taken across all days", main = " Time series plot of the 5-minute interval and \naverage steps across all days")
 ```
 ```{r, results="hide"}
 nameIntervalMaxAve <- names(dataAve5Int[dataAve5Int==max(dataAve5Int)])
+maxValue <- round(max(dataAve5Int))
 ```
 5-minute interval, on average across all the days in the dataset, which contains the maximum number of steps is `r nameIntervalMaxAve`
 
+The maximum value at this interval is `r maxValue`
 
 ## Imputing missing values
 ```{r, results="hide"}
@@ -44,27 +50,66 @@ totalNAs <- sum(is.na(data$steps))
 ```
 Total number of missing values is `r totalNAs`
 
-```{r, results="hide"}
+```{r, echo=FALSE}
+#dataCopy <- data
+#library(plyr)
+#impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+#ddply(dataCopy, .(interval), transform, steps = impute.mean(steps))
+#----------------------------------------------------------------------------------
+#meanIntervalSteps <- aggregate(steps ~ interval, data, FUN = mean, na.rm = TRUE)
+#data$steps2 <- data$steps
+#indexMissingStepVals <- is.na(data$steps2)
+
+#data[indexMissingStepVals, 4] <- meanIntervalSteps[meanIntervalSteps$interval == #data[indexMissingStepVals,3],2]
+#----------------------------------------------------------------------------------
+```
+
+```{r impute_missing_values}
 dataCopy <- data
-library(plyr)
-impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
-ddply(dataCopy, .(as.character(date)), transform, steps = impute.mean(steps))
+
+#check for na in steps variable
+stepsNa <- is.na(dataCopy$steps)
+
+#work out the average number of steps / interval
+ave_interval <- tapply(dataCopy$steps,dataCopy$interval,mean, na.rm = TRUE, simplify = TRUE)
+
+#substitute the average interval values into dataCopy data frame
+dataCopy$steps[stepsNa] <- ave_interval[as.character(dataCopy$interval[stepsNa])]
 ```
 
 ```{r dailytotalsteps2}
-dataCopy2 <- tapply(dataCopy$steps, dataCopy$date, sum)
+dataImputed <- tapply(dataCopy$steps, dataCopy$date, sum)
 ```
 ```{r histogram2}
 par(mar=c(5,4,1,1))
-hist(dataCopy2)
+hist(dataImputed,main="Histogram of Total Daily Steps with Imputed Missing Values", xlab = "Total Daily Steps")
 ```
 ```{r, results="hide"}
-dataCopy2mean <- mean(dataCopy2, na.rm=TRUE)
-dataCopy2median <- median(dataCopy2, na.rm=TRUE)
+dataImputedMean <- mean(dataImputed, na.rm=TRUE)
+dataImputedMedian <- median(dataImputed, na.rm=TRUE)
 ```
 
-The mean total number of steps taken per day is `r dataCopy2mean`. <br/>
-The median total number of steps taken per day is `r dataCopy2median`.
+The mean total number of steps taken per day is `r dataImputedMean`. <br/>
+The median total number of steps taken per day is `r dataImputedMedian`.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r panelplot1}
+dataCopy2 <- dataCopy
+dataCopy2$date <- as.Date(dataCopy2$date)
+
+#create a vector of weekdays
+weekdays1 <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+
+dataCopy2$wDay <- factor( (weekdays(dataCopy2$date) %in% weekdays1), levels=c(FALSE, TRUE), labels=c('weekend', 'weekday'))
+
+activityPattern <- with(dataCopy2,aggregate(steps ~ interval + wDay, FUN = "mean"))
+
+library(ggplot2)
+g <- ggplot(activityPattern, aes(interval, steps)) + geom_line()
+g + facet_grid(wDay ~ .) + labs(x = "Interval") + labs(y = "Average number of steps") + labs(title = "Activity Patterns over Weekends and Weekdays")
+```
+
+
+The panel plots show that activity over weekdays is concentrated around a few intervals, probably because people are working, while weekend activity is spread out throughout the day since people are not working.
